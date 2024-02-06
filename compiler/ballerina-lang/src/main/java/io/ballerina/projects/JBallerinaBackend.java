@@ -137,6 +137,7 @@ public class JBallerinaBackend extends CompilerBackend {
     private final HashSet<PackageId> unusedPackageIds = new HashSet<>();
     private final HashSet<ModuleId> unusedModuleIds = new HashSet<>();
     private final HashMap<PackageId, HashSet<String>> pkgWiseUsedNativeClassPaths = new HashMap<>();
+    private static long birOptimizeDeletionTimeTotal = 0;
 
     public static JBallerinaBackend from(PackageCompilation packageCompilation, JvmTarget jdkVersion) {
         return from(packageCompilation, jdkVersion, true);
@@ -256,7 +257,7 @@ public class JBallerinaBackend extends CompilerBackend {
             }
 
             long endTime = System.currentTimeMillis();
-            System.out.println("Duration for BIR level dead code analysis : " + (endTime - startTime) + "ms");
+            System.out.println("Duration for unused BIR node analysis : " + (endTime - startTime) + "ms");
 
             // Generate optimized thin JAR byte streams
             for (ModuleContext moduleContext : pkgResolution.topologicallySortedModuleList()) {
@@ -276,6 +277,7 @@ public class JBallerinaBackend extends CompilerBackend {
                     moduleContext.cleanBLangPackage();
                 }
             }
+            System.out.println("Duration for unused BIR node deletion : " + (birOptimizeDeletionTimeTotal) + "ms");
         }
         // add compilation diagnostics
         diagnostics.addAll(moduleDiagnostics);
@@ -502,8 +504,11 @@ public class JBallerinaBackend extends CompilerBackend {
     }
 
     public void performOptimizedCodeGen(ModuleContext moduleContext) {
+        long birOptimizeDeletionTimeStart = System.currentTimeMillis();
         optimizeBirPackage(moduleContext.bLangPackage().symbol);
+        long birOptimizeDeletionTimeEnd = System.currentTimeMillis();
 
+        birOptimizeDeletionTimeTotal += (birOptimizeDeletionTimeEnd - birOptimizeDeletionTimeStart);
         BLangPackage bLangPackage = moduleContext.bLangPackage();
         interopValidator.validate(moduleContext.moduleId(), this, bLangPackage);
         if (bLangPackage.getErrorCount() > 0) {
@@ -832,6 +837,8 @@ public class JBallerinaBackend extends CompilerBackend {
 //            ZipFile originalFatJar = new ZipFile(new File(executableFilePath.toString()));
 
             outStream.close();
+
+            long nativeOptStartTime = System.currentTimeMillis();
             ZipFile originalFatJar = new ZipFile(executableFilePath.toString());
 
             HashSet<String> startPoints = new HashSet<>();
@@ -851,6 +858,10 @@ public class JBallerinaBackend extends CompilerBackend {
             originalJar.delete();
 //            seekableByteChannel.close();
 //            outStream.close();
+
+            long nativeOptEndTime = System.currentTimeMillis();
+
+            System.out.println("Duration for Bytecode Optimization (analysis + deletion) : " + (nativeOptEndTime - nativeOptStartTime) + "ms");
 
         } catch (IOException e) {
             throw new RuntimeException(e);
