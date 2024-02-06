@@ -43,7 +43,7 @@ import org.ballerinalang.model.elements.PackageID;
 import org.ballerinalang.model.symbols.SymbolKind;
 import org.ballerinalang.model.types.SelectivelyImmutableReferenceType;
 import org.wso2.ballerinalang.compiler.CompiledJarFile;
-import org.wso2.ballerinalang.compiler.bir.DeadBIRNodeAnalyzer;
+import org.wso2.ballerinalang.compiler.bir.BIRDeadNodeAnalyzer;
 import org.wso2.ballerinalang.compiler.bir.codegen.CodeGenerator;
 import org.wso2.ballerinalang.compiler.bir.codegen.CompiledJarFile;
 import org.wso2.ballerinalang.compiler.bir.codegen.bytecodeOptimizer.NativeDependencyOptimizer;
@@ -263,13 +263,12 @@ public class JBallerinaBackend extends CompilerBackend {
             for (ModuleContext moduleContext : pkgResolution.topologicallySortedModuleList()) {
                 if (moduleContext.currentCompilationState() == ModuleCompilationState.PLATFORM_LIBRARY_GENERATED &&
                         !moduleContext.moduleId().moduleName().contains("observe")) {
-                    if (!moduleContext.bLangPackage().symbol.invocationData2.moduleIsUsed) {
-                        unusedPackageIds.add(moduleContext.moduleId().packageId());
-                        unusedModuleIds.add(moduleContext.moduleId());
-                        unusedPackageIDs.add(moduleContext.bLangPackage().symbol.pkgID);
-                        continue;
+                    if (!moduleContext.bLangPackage().symbol.invocationData.moduleIsUsed &&
+                            !isWhiteListedModule(moduleContext)) {
+                        updateUnusedPkgMaps(moduleContext);
+                    } else {
+                        performOptimizedCodeGen(moduleContext);
                     }
-                    performOptimizedCodeGen(moduleContext);
                 }
 
                 // Moved the cleaning down because codegen was also moved down
@@ -290,10 +289,20 @@ public class JBallerinaBackend extends CompilerBackend {
         codeGenCompleted = true;
     }
 
+    private boolean isWhiteListedModule(ModuleContext moduleContext) {
+        return moduleContext.moduleId().moduleName().contains(".driver");
+    }
+
+    private void updateUnusedPkgMaps(ModuleContext ususedModuleContext) {
+        unusedPackageIds.add(ususedModuleContext.moduleId().packageId());
+        unusedModuleIds.add(ususedModuleContext.moduleId());
+        unusedPackageIDs.add(ususedModuleContext.bLangPackage().symbol.pkgID);
+    }
+
     private void updateNativeDependencyMap(ModuleContext moduleContext) {
         pkgWiseUsedNativeClassPaths.putIfAbsent(moduleContext.moduleId().packageId(), new HashSet<>());
         pkgWiseUsedNativeClassPaths.get(moduleContext.moduleId().packageId())
-                .addAll(moduleContext.bLangPackage().symbol.invocationData2.usedNativeClassPaths);
+                .addAll(moduleContext.bLangPackage().symbol.invocationData.usedNativeClassPaths);
     }
     private boolean hasErrors(List<Diagnostic> diagnostics) {
         for (Diagnostic diagnostic : diagnostics) {
@@ -797,19 +806,20 @@ public class JBallerinaBackend extends CompilerBackend {
 
             HashSet<String> startPoints = new HashSet<>();
             startPoints.add(getMainClassFileName(this.packageContext()));
+            startPoints.add("io/ballerina/stdlib/crypto/svm/BouncyCastleFeature");
             ZipArchiveOutputStream optimizedJarStream = new ZipArchiveOutputStream(
                     new FileOutputStream(executableFilePath.toString().replace(".jar", "_OPTIMIZED.jar")));
 
             NativeDependencyOptimizer nativeDependencyOptimizer =
                     new NativeDependencyOptimizer(startPoints, originalFatJar, optimizedJarStream);
 
-            nativeDependencyOptimizer.analyzeServiceProviders();
+            nativeDependencyOptimizer.analyzeWhiteListedClasses();
             nativeDependencyOptimizer.analyzeUsedClasses();
             nativeDependencyOptimizer.copyUsedEntries();
 
             optimizedJarStream.close();
-            File originalJar = new File(executableFilePath.toString());
-            originalJar.delete();
+//            File originalJar = new File(executableFilePath.toString());
+//            originalJar.delete();
 //            seekableByteChannel.close();
 //            outStream.close();
 
