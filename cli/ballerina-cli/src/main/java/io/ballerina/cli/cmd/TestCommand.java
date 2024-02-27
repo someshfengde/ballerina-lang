@@ -219,6 +219,8 @@ public class TestCommand implements BLauncherCmd {
 
     @CommandLine.Option(names = "--cloud", description = "Enable cloud artifact generation")
     private String cloud;
+    @CommandLine.Option(names = "--optimize", description = "generate optimized executable jar", defaultValue = "false")
+    private Boolean optimizeCodegen;
 
     @CommandLine.Option(names = "--optimize-dependency-compilation", hidden = true,
             description = "experimental memory optimization for large projects")
@@ -430,7 +432,8 @@ public class TestCommand implements BLauncherCmd {
                 .disableSyntaxTreeCaching(disableSyntaxTreeCaching)
                 .setGraalVMBuildOptions(graalVMBuildOptions)
                 .setShowDependencyDiagnostics(showDependencyDiagnostics)
-                .setOptimizeDependencyCompilation(optimizeDependencyCompilation);
+                .setOptimizeDependencyCompilation(optimizeDependencyCompilation)
+                .setOptimizeCodegen(optimizeCodegen);
 
         if (targetDir != null) {
             buildOptionsBuilder.targetDir(targetDir.toString());
