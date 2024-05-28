@@ -623,7 +623,7 @@ public class JBallerinaBackend extends CompilerBackend {
         }
 
         if (isRootModule(moduleContext)) {
-            JvmCodeGenUtil.isRootPkgCodeGen = true;
+            JvmCodeGenUtil.markIsRootPackage();
         }
         optimizeBirPackage(bLangPackage.symbol);
 
