@@ -268,7 +268,7 @@ public class JBallerinaBackend extends CompilerBackend {
 
         CodeGenOptimizationReportEmitter.emitBirOptimizationDuration();
 
-        if (this.packageContext.project().buildOptions().verbose()) {
+        if (this.packageContext.project().buildOptions().optimizeReport()) {
             CodeGenOptimizationReportEmitter.emitCodegenOptimizationReport(
                     this.usedBIRNodeAnalyzer.pkgWiseInvocationData, getOptimizationReportPath(),
                     packageContext.project().kind());
@@ -898,7 +898,7 @@ public class JBallerinaBackend extends CompilerBackend {
             CodeGenOptimizationReportEmitter.flipNativeOptimizationTimer();
             CodeGenOptimizationReportEmitter.emitNativeOptimizationDuration();
             CodeGenOptimizationReportEmitter.emitOptimizedExecutableSize(Path.of(bytecodeOptimizedJarPath));
-            if (this.packageContext.project().buildOptions().verbose()) {
+            if (this.packageContext.project().buildOptions().optimizeReport()) {
                 NativeDependencyOptimizationReportEmitter.emitCodegenOptimizationReport(
                         nativeDependencyOptimizer.getNativeDependencyOptimizationReport(), getOptimizationReportPath(),
                         packageContext.project().kind());
