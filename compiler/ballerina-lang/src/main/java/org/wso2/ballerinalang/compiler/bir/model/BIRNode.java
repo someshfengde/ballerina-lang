@@ -393,7 +393,7 @@ public abstract class BIRNode {
                            List<BIRAnnotationAttachment> annotAttachments,
                            List<BIRAnnotationAttachment> returnTypeAnnots,
                            Set<BIRGlobalVariableDcl> dependentGlobalVars, UsedState usedState,
-                           HashSet<BIRDocumentableNode> childNodes) {
+                           Set<BIRDocumentableNode> childNodes) {
             super(pos);
             this.name = name;
             this.originalName = originalName;
@@ -861,10 +861,10 @@ public abstract class BIRNode {
      */
     public abstract static class BIRDocumentableNode extends BIRNode {
         public MarkdownDocAttachment markdownDocAttachment;
-        public HashSet<BIRDocumentableNode> childNodes = new HashSet<>();
+        public Set<BIRDocumentableNode> childNodes = new HashSet<>();
         // Used for debugging purposes
-        public HashSet<BIRDocumentableNode> parentNodes = new HashSet<>();
-        public UsedState usedState = UsedState.UNEXPOLORED;
+        public Set<BIRDocumentableNode> parentNodes = new HashSet<>();
+        public UsedState usedState = UsedState.UNEXPLORED;
 
         protected BIRDocumentableNode(Location pos) {
             super(pos);
@@ -879,16 +879,14 @@ public abstract class BIRNode {
                 return;
             }
             childNodes.add(childNode);
-
             addParent(childNode, this);
-
             if (this.usedState == UsedState.USED) {
                 // It is possible to omit unused modules from codegen if they are identified in the analyzer phase
                 childNode.markSelfAndChildrenAsUsed();
             }
         }
 
-        private void addParent(BIRDocumentableNode childNode, BIRDocumentableNode parentNode) {
+        private static void addParent(BIRDocumentableNode childNode, BIRDocumentableNode parentNode) {
             childNode.parentNodes.add(parentNode);
         }
 
@@ -898,9 +896,7 @@ public abstract class BIRNode {
             }
             usedState = UsedState.USED;
             for (BIRDocumentableNode childNode : this.childNodes) {
-                if (childNode != null) {
-                    childNode.markSelfAndChildrenAsUsed();
-                }
+                childNode.markSelfAndChildrenAsUsed();
             }
         }
 
