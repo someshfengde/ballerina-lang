@@ -338,9 +338,9 @@ public class BuildCommand implements BLauncherCmd {
                 .disableSyntaxTreeCaching(disableSyntaxTreeCaching)
                 .setGraalVMBuildOptions(graalVMBuildOptions)
                 .setShowDependencyDiagnostics(showDependencyDiagnostics)
-                .setOptimizeDependencyCompilation(optimizeDependencyCompilation);
-                .setShowDependencyDiagnostics(showDependencyDiagnostics);
-                .setOptimizeCodegen(optimizeCodegen);
+                .setOptimizeDependencyCompilation(optimizeDependencyCompilation)
+                .setShowDependencyDiagnostics(showDependencyDiagnostics)
+                .setOptimizeCodegen(optimizeCodegen)
                 .setOptimizeReport(optimizeReport);
 
         if (targetDir != null) {
