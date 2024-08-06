@@ -1,5 +1,5 @@
 Compiling source
-	service.bal
+	INSERT_PROJECT_NAME
 WARNING [:(1:1,1:1)] Skipped adding the generated source file with prefix "dummyfunc". Source file generation is not supported with standalone bal files
 
 Running executable
@@ -7,8 +7,7 @@ Running executable
 
 Detected file changes. Re-running the project...
 Compiling source
-	service.bal
+	INSERT_PROJECT_NAME
 WARNING [:(1:1,1:1)] Skipped adding the generated source file with prefix "dummyfunc". Source file generation is not supported with standalone bal files
-
-Running executable
-
+ERROR [INSERT_PROJECT_NAME:(17:1,17:1)] missing semicolon token
+error: compilation contains errors
