@@ -437,16 +437,6 @@ public class RunCommandTest extends BaseCommandTest {
         Assert.assertEquals(buildLog.replaceAll("\r", ""), getOutput("run-empty-project-with-build-tools.txt"));
     }
 
-    // TODO
-    @Test(description = "Run a package with sourcecode changes")
-    public void testRunProjectWithWatchFlag() {
-        Path projectPath = this.testResources.resolve("validRunProject");
-        System.setProperty("user.dir", this.testResources.resolve("validRunProject").toString());
-        RunCommand runCommand = new RunCommand(projectPath, printStream, true);
-        new CommandLine(runCommand).parseArgs("--watch");
-        runCommand.execute();
-    }
-
     @AfterSuite
     public void cleanUp() throws IOException {
         Files.deleteIfExists(logFile);

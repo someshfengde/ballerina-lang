@@ -67,10 +67,13 @@ public class ProjectWatcher {
     private final ScheduledExecutorService scheduledExecutorService;
     private final Map<Path, Long> debounceMap = new ConcurrentHashMap<>();
     private static final long debounceTimeMillis = 250;
+    private final RunCommandExecutor[] thread;
+    private volatile boolean forceStop = false;
 
     public ProjectWatcher(RunCommand runCommand, Path projectPath, PrintStream outStream) throws IOException {
         this.fileWatcher = FileSystems.getDefault().newWatchService();
         this.runCommand = runCommand;
+        thread = new RunCommandExecutor[]{new RunCommandExecutor(runCommand, outStream)};
         this.projectPath = projectPath.toAbsolutePath();
         this.outStream = outStream;
         this.watchKeys = new HashMap<>();
@@ -80,10 +83,17 @@ public class ProjectWatcher {
         registerFileTree(projectPath);
     }
 
+    /**
+     * Watches for any file changes in a Ballerina service project and restarts the service.
+     * Changes on source files, resources and .toml files are considered valid file changes. Changes to
+     * Dependencies.toml, tests, target directory and other files are ignored.
+     *
+     * @throws IOException if the watcher cannot register files for watching.
+     * @throws InterruptedException when the current thread is interrupted.
+     */
     public void watch() throws IOException {
-        final RunCommandExecutor[] thread = {new RunCommandExecutor(runCommand, outStream)};
         thread[0].start();
-        while (thread[0].shouldWatch()) {
+        while (thread[0].shouldWatch() && !forceStop) {
             WatchKey key;
             key = fileWatcher.poll();
             Path dir = watchKeys.get(key);
@@ -130,6 +140,19 @@ public class ProjectWatcher {
                     break;
                 }
             }
+        }
+    }
+
+    public void stopWatching() {
+        try {
+            if (thread != null) {
+                thread[0].terminate();
+                thread[0].join();
+            }
+            forceStop = true;
+            fileWatcher.close();
+        } catch (IOException | InterruptedException e) {
+            outStream.println("Error occurred while stopping the project watcher: " + e.getMessage());
         }
     }
 

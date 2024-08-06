@@ -1,6 +1,6 @@
 package io.ballerina.cli.cmd;
 
-import io.ballerina.cli.cmd.watch.ProjectWatcher;
+import io.ballerina.cli.utils.ProjectWatcher;
 import io.ballerina.projects.ProjectEnvironmentBuilder;
 import io.ballerina.projects.environment.Environment;
 import io.ballerina.projects.environment.EnvironmentBuilder;
@@ -17,19 +17,27 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.ballerina.cli.cmd.CommandOutputUtils.getOutput;
 import static io.ballerina.projects.util.ProjectConstants.DIST_CACHE_DIRECTORY;
 
+/**
+ * Tests for the --watch flag in the run command.
+ *
+ * @since 2201.11.0
+ */
 public class ProjectWatcherTest extends BaseCommandTest {
     private static final String WATCH_FLAG = "--watch";
+    private static final int THREAD_SLEEP_DURATION_IN_MS = 8000;
 
     private Path watchTestResources;
     private Path testDistCacheDirectory;
     private ProjectEnvironmentBuilder projectEnvironmentBuilder;
-    private AtomicReference<ProjectWatcher> watcher;
     private Thread watcherThread;
+    private AtomicReference<ProjectWatcher> watcher;
+    private CountDownLatch latch = new CountDownLatch(1);
 
     // TODO: scenarios
     //  Negatives
@@ -62,7 +70,6 @@ public class ProjectWatcherTest extends BaseCommandTest {
                     getClass().getClassLoader().getResource("test-resources")).toURI();
             Files.walkFileTree(Paths.get(testResourcesURI),
                     new BuildCommandTest.Copy(Paths.get(testResourcesURI), testResources));
-            // setup the watcher and a thread reference.
             watcher = new AtomicReference<>();
         } catch (URISyntaxException e) {
             Assert.fail("error loading resources");
@@ -74,22 +81,22 @@ public class ProjectWatcherTest extends BaseCommandTest {
         Path balFilePath = this.watchTestResources.resolve("service.bal");
         RunCommand runCommand = new RunCommand(balFilePath, printStream, false);
         new CommandLine(runCommand).parseArgs(WATCH_FLAG, balFilePath.toString());
-        AtomicReference<ProjectWatcher> watcher = new AtomicReference<>();
-        Thread thread = new Thread(() -> {
+        watcherThread = new Thread(() -> {
             try {
                 watcher.set(new ProjectWatcher(runCommand, balFilePath, printStream));
+                latch.countDown();
                 watcher.get().watch();
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
-        thread.start();
-        Thread.sleep(10000);
+        watcherThread.start();
+        latch.await();
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
         replaceFileContent(balFilePath, this.watchTestResources.resolve("service-updated.bal"));
-        Thread.sleep(10000);
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
         String buildLog = readOutput(true);
         Assert.assertEquals(buildLog.replace("\r", ""), getOutput("watch-single-file-service.txt"));
-        // TODO: hangs here
     }
 
     @AfterMethod
@@ -115,6 +122,5 @@ public class ProjectWatcherTest extends BaseCommandTest {
     private void stopProjectWatcher(Thread thread, ProjectWatcher watcher) throws InterruptedException {
         watcher.stopWatching();
         thread.join();
-
     }
 }
