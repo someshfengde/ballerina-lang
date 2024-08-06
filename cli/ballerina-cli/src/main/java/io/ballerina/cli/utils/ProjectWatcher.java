@@ -89,7 +89,6 @@ public class ProjectWatcher {
      * Dependencies.toml, tests, target directory and other files are ignored.
      *
      * @throws IOException if the watcher cannot register files for watching.
-     * @throws InterruptedException when the current thread is interrupted.
      */
     public void watch() throws IOException {
         thread[0].start();

@@ -7,8 +7,6 @@ import io.ballerina.projects.environment.EnvironmentBuilder;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import picocli.CommandLine;
 
@@ -183,7 +181,7 @@ public class ProjectWatcherTest extends BaseCommandTest {
 
     private String readExpectedOutputFile(String expectedOutputFile, Path balFilePath) throws IOException {
         return getOutput(expectedOutputFile)
-                .replace("INSERT_PROJECT_NAME", balFilePath.getFileName().toString());
+                .replace(PROJECT_NAME_PLACEHOLDER, balFilePath.getFileName().toString());
     }
 
     private void stopProjectWatcher(Thread thread, ProjectWatcher watcher) throws InterruptedException {
