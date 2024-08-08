@@ -1,9 +1,6 @@
 package io.ballerina.cli.cmd;
 
 import io.ballerina.cli.utils.ProjectWatcher;
-import io.ballerina.projects.ProjectEnvironmentBuilder;
-import io.ballerina.projects.environment.Environment;
-import io.ballerina.projects.environment.EnvironmentBuilder;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -21,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.ballerina.cli.cmd.CommandOutputUtils.getOutput;
-import static io.ballerina.projects.util.ProjectConstants.DIST_CACHE_DIRECTORY;
 
 /**
  * Tests for the --watch flag in the run command.
@@ -34,26 +30,8 @@ public class ProjectWatcherTest extends BaseCommandTest {
     private static final String PROJECT_NAME_PLACEHOLDER = "INSERT_PROJECT_NAME";
 
     private Path watchTestResources;
-    private Path testDistCacheDirectory;
-    private ProjectEnvironmentBuilder projectEnvironmentBuilder;
     private Thread watcherThread;
     private AtomicReference<ProjectWatcher> watcher;
-
-    // TODO: scenarios
-    //  Negatives
-    //  1. Compilation error
-    //  2. Single file no service
-    //  3. Project no service
-    //  4. Invalid file changes - target/., tests/blah.bal /blah/blah.bal, modules/blah.bal, blah.json
-    //  5. Invalid file creation, deletion
-    //
-    // TODO
-    //  1. Valid file changes - resources/*, /blah.bal,
-    //  2. Valid file creation, deletion
-    //  3. Single file service
-    //  4. Project service
-    //  5. Deleting a service - should terminate immediately.
-    //  6. --offline, --sticky
 
     @BeforeClass
     public void setup() throws IOException {
@@ -61,11 +39,6 @@ public class ProjectWatcherTest extends BaseCommandTest {
         try {
             Path testResources = super.tmpDir.resolve("build-test-resources");
             this.watchTestResources = testResources.resolve("watchFlagResources");
-            Path testBuildDirectory = Paths.get("build").toAbsolutePath();
-            this.testDistCacheDirectory = testBuildDirectory.resolve(DIST_CACHE_DIRECTORY);
-            Path customUserHome = Paths.get("build", "user-home");
-            Environment environment = EnvironmentBuilder.getBuilder().setUserHome(customUserHome).build();
-            this.projectEnvironmentBuilder = ProjectEnvironmentBuilder.getBuilder(environment);
             URI testResourcesURI = Objects.requireNonNull(
                     getClass().getClassLoader().getResource("test-resources")).toURI();
             Files.walkFileTree(Paths.get(testResourcesURI),
@@ -78,7 +51,7 @@ public class ProjectWatcherTest extends BaseCommandTest {
 
     @Test(description = "Run a correct bal service file and do a correct change")
     public void testRunWatchCorrectBalFileWithCorrectChange() throws IOException, InterruptedException {
-        Path balFilePath = createTempFile("service.bal");
+        Path balFilePath = createTempFileFromTestResource("service.bal");
         RunCommand runCommand = new RunCommand(balFilePath, printStream, false);
         new CommandLine(runCommand).parseArgs(WATCH_FLAG, balFilePath.toString());
         CountDownLatch latch = new CountDownLatch(1);
@@ -103,7 +76,7 @@ public class ProjectWatcherTest extends BaseCommandTest {
 
     @Test(description = "Run a correct bal service file and do a erroneous change")
     public void testRunWatchCorrectBalFileWithErroneousChange() throws IOException, InterruptedException {
-        Path balFilePath = createTempFile("service.bal");
+        Path balFilePath = createTempFileFromTestResource("service.bal");
         RunCommand runCommand = new RunCommand(balFilePath, printStream, false);
         new CommandLine(runCommand).parseArgs(WATCH_FLAG, balFilePath.toString());
         CountDownLatch latch = new CountDownLatch(1);
@@ -128,7 +101,7 @@ public class ProjectWatcherTest extends BaseCommandTest {
 
     @Test(description = "Run a erroneous bal service file and do a correct change")
     public void testRunWatchErroneousBalFileWithCorrectChange() throws IOException, InterruptedException {
-        Path balFilePath = createTempFile("service-error.bal");
+        Path balFilePath = createTempFileFromTestResource("service-error.bal");
         RunCommand runCommand = new RunCommand(balFilePath, printStream, false);
         new CommandLine(runCommand).parseArgs(WATCH_FLAG, balFilePath.toString());
         CountDownLatch latch = new CountDownLatch(1);
@@ -151,6 +124,184 @@ public class ProjectWatcherTest extends BaseCommandTest {
         Assert.assertEquals(actualOutput, expectedOutput);
     }
 
+    @Test(description = "Run a bal file with no service")
+    public void testRunWatchBalFileWithNoService() throws IOException, InterruptedException {
+        Path balFilePath = createTempFileFromTestResource("main.bal");
+        RunCommand runCommand = new RunCommand(balFilePath, printStream, false);
+        new CommandLine(runCommand).parseArgs(WATCH_FLAG, balFilePath.toString());
+        CountDownLatch latch = new CountDownLatch(1);
+        watcherThread = new Thread(() -> {
+            try {
+                watcher.set(new ProjectWatcher(runCommand, balFilePath, printStream));
+                latch.countDown();
+                watcher.get().watch();
+            } catch (IOException e) {
+                Assert.fail("Error occurred while watching the project: " + e);
+            }
+        });
+        watcherThread.start();
+        latch.await();
+        watcherThread.join(THREAD_SLEEP_DURATION_IN_MS);
+        Assert.assertFalse(watcherThread.isAlive());
+        String actualOutput = readOutput(true).replace("\r", "");
+        String expectedOutput = readExpectedOutputFile("watch-no-service-file.txt", balFilePath);
+        Assert.assertEquals(actualOutput, expectedOutput);
+    }
+
+    @Test(description = "Run a bal service project and do a correct change")
+    public void testRunWatchBalProjectWithCorrectChange() throws IOException, InterruptedException {
+        Path balProjectPath = createTempDirFromTestResource("service");
+        RunCommand runCommand = new RunCommand(balProjectPath, printStream, false);
+        new CommandLine(runCommand).parseArgs(WATCH_FLAG, balProjectPath.toString());
+        CountDownLatch latch = new CountDownLatch(1);
+        watcherThread = new Thread(() -> {
+            try {
+                watcher.set(new ProjectWatcher(runCommand, balProjectPath, printStream));
+                latch.countDown();
+                watcher.get().watch();
+            } catch (IOException e) {
+                Assert.fail("Error occurred while watching the project: " + e);
+            }
+        });
+        watcherThread.start();
+        latch.await();
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Update a source file
+        replaceFileContent(balProjectPath.resolve("service.bal"),
+                this.watchTestResources.resolve("project-service-updated.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add a new source file
+        Files.copy(this.watchTestResources.resolve("constants.bal"), balProjectPath.resolve("constants.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Remove a source file
+        Files.delete(balProjectPath.resolve("constants.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+        String actualOutput = readOutput(true).replace("\r", "");
+        String expectedOutput = readExpectedOutputFile("watch-correct-service-project-correct-change.txt",
+                balProjectPath);
+        Assert.assertEquals(actualOutput, expectedOutput);
+    }
+
+    @Test(description = "Run a bal project with no service")
+    public void testRunWatchBalProjectWithNoService() throws IOException, InterruptedException {
+        Path balProjectPath = createTempDirFromTestResource("main");
+        RunCommand runCommand = new RunCommand(balProjectPath, printStream, false);
+        new CommandLine(runCommand).parseArgs(WATCH_FLAG, balProjectPath.toString());
+        CountDownLatch latch = new CountDownLatch(1);
+        watcherThread = new Thread(() -> {
+            try {
+                watcher.set(new ProjectWatcher(runCommand, balProjectPath, printStream));
+                latch.countDown();
+                watcher.get().watch();
+            } catch (IOException e) {
+                Assert.fail("Error occurred while watching the project: " + e);
+            }
+        });
+        watcherThread.start();
+        latch.await();
+        watcherThread.join(THREAD_SLEEP_DURATION_IN_MS);
+        Assert.assertFalse(watcherThread.isAlive());
+        String actualOutput = readOutput(true).replace("\r", "");
+        String expectedOutput = readExpectedOutputFile("watch-no-service-project.txt", balProjectPath);
+        Assert.assertEquals(actualOutput, expectedOutput);
+    }
+
+    @Test(description = "Run a bal service project and do valid file change")
+    public void testRunWatchBalProjectWithValidFileChanges() throws IOException, InterruptedException {
+        Path balProjectPath = createTempDirFromTestResource("service");
+        RunCommand runCommand = new RunCommand(balProjectPath, printStream, false);
+        new CommandLine(runCommand).parseArgs(WATCH_FLAG, balProjectPath.toString());
+        CountDownLatch latch = new CountDownLatch(1);
+        watcherThread = new Thread(() -> {
+            try {
+                watcher.set(new ProjectWatcher(runCommand, balProjectPath, printStream));
+                latch.countDown();
+                watcher.get().watch();
+            } catch (IOException e) {
+                Assert.fail("Error occurred while watching the project: " + e);
+            }
+        });
+        watcherThread.start();
+        latch.await();
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Update the Ballerina.toml
+        replaceFileContent(balProjectPath.resolve("Ballerina.toml"),
+                this.watchTestResources.resolve("Ballerina-copy.toml"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add a new module with a source file
+        Files.copy(this.watchTestResources.resolve("mod1.bal"),
+                balProjectPath.resolve("modules").resolve("mod1").resolve("mod1.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add a new resource file
+        Files.copy(this.watchTestResources.resolve("hello.txt"),
+                balProjectPath.resolve("resources").resolve("hello.txt"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        String actualOutput = readOutput(true).replace("\r", "");
+        String expectedOutput = readExpectedOutputFile("watch-service-project-valid-changes.txt", balProjectPath);
+        Assert.assertEquals(actualOutput, expectedOutput);
+    }
+
+    @Test(description = "Run a bal service project and do invalid file change")
+    public void testRunWatchBalProjectWithInvalidFileChanges() throws IOException, InterruptedException {
+        Path balProjectPath = createTempDirFromTestResource("service");
+        RunCommand runCommand = new RunCommand(balProjectPath, printStream, false);
+        new CommandLine(runCommand).parseArgs(WATCH_FLAG, balProjectPath.toString());
+        CountDownLatch latch = new CountDownLatch(1);
+        watcherThread = new Thread(() -> {
+            try {
+                watcher.set(new ProjectWatcher(runCommand, balProjectPath, printStream));
+                latch.countDown();
+                watcher.get().watch();
+            } catch (IOException e) {
+                Assert.fail("Error occurred while watching the project: " + e);
+            }
+        });
+        watcherThread.start();
+        latch.await();
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add test file
+        Path testFilePath = balProjectPath.resolve("tests").resolve("test.bal");
+        Files.copy(this.watchTestResources.resolve("constants.bal"), testFilePath);
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Change test file
+        replaceFileContent(testFilePath, this.watchTestResources.resolve("project-service-updated.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Delete a test file
+        Files.delete(testFilePath);
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add a test file to a module
+        Files.copy(this.watchTestResources.resolve("constants.bal"),
+                balProjectPath.resolve("modules").resolve("mod1").resolve("tests").resolve("test.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        // Add a source file into modules/
+        Files.copy(this.watchTestResources.resolve("constants.bal"),
+                balProjectPath.resolve("modules").resolve("constants.bal"));
+
+        // Add a json file to the root
+        Files.copy(this.watchTestResources.resolve("hello.json"), balProjectPath.resolve("hello.json"));
+
+        // Add a source file to target/
+        Files.copy(this.watchTestResources.resolve("constants.bal"),
+                balProjectPath.resolve("target").resolve("constants.bal"));
+        Thread.sleep(THREAD_SLEEP_DURATION_IN_MS);
+
+        String actualOutput = readOutput(true).replace("\r", "");
+        String expectedOutput = readExpectedOutputFile("watch-service-project-invalid-changes.txt", balProjectPath);
+        Assert.assertEquals(actualOutput, expectedOutput);
+    }
+
     @AfterMethod
     public void afterMethod() {
         try {
@@ -163,11 +314,19 @@ public class ProjectWatcherTest extends BaseCommandTest {
         }
     }
 
-    private Path createTempFile(String fileName) throws IOException {
+    private Path createTempFileFromTestResource(String fileName) throws IOException {
         Path balFilePath = this.watchTestResources.resolve(fileName);
         Path tempFilePath = Files.createTempFile("service", ".bal");
         replaceFileContent(tempFilePath, balFilePath);
         return tempFilePath;
+    }
+
+    private Path createTempDirFromTestResource(String projectName) throws IOException {
+        Path balProjectPath = this.watchTestResources.resolve(projectName);
+        Path tempProjectPath = Files.createTempDirectory("service");
+        tempProjectPath.toFile().deleteOnExit();
+        Files.walkFileTree(balProjectPath, new BuildCommandTest.Copy(balProjectPath, tempProjectPath));
+        return tempProjectPath;
     }
 
     private void replaceFileContent(Path filePath, Path copyFrom) {
