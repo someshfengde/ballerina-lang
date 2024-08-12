@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /***
  * A in-built code analyzer which adds a log statement to the beginning of the file.
@@ -36,8 +38,8 @@ import java.nio.charset.StandardCharsets;
  * @since 2.7.1
  */
 public class LogCodeAnalyzerInBuiltPlugin extends CompilerPlugin {
-    static String filePath = "./src/test/resources/compiler_plugin_tests/" +
-            "log_creator_combined_plugin/compiler-plugin.txt";
+    private static final Path filePath = Paths.get("build/logs/log_creator_combined_plugin/compiler-plugin.txt")
+            .toAbsolutePath();
 
     @Override
     public void init(CompilerPluginContext pluginContext) {
@@ -52,7 +54,7 @@ public class LogCodeAnalyzerInBuiltPlugin extends CompilerPlugin {
         @Override
         public void init(CodeAnalysisContext analysisContext) {
             analysisContext.addCompilationAnalysisTask(compilationAnalysisContext ->
-                appendToOutputFile(filePath, "source-analyzer"));
+                appendToOutputFile("source-analyzer"));
 
             analysisContext.addSyntaxNodeAnalysisTask(new LogSyntaxNodeAnalysis(), SyntaxKind.FUNCTION_DEFINITION);
         }
@@ -65,12 +67,12 @@ public class LogCodeAnalyzerInBuiltPlugin extends CompilerPlugin {
 
         @Override
         public void perform(SyntaxNodeAnalysisContext syntaxNodeAnalysisContext) {
-            appendToOutputFile(filePath, "syntax-node-analysis-analyzer");
+            appendToOutputFile("syntax-node-analysis-analyzer");
         }
     }
 
-    private static void appendToOutputFile(String filePath, String content) {
-        File outputFile = new File(filePath);
+    private static void appendToOutputFile(String content) {
+        File outputFile = new File(String.valueOf(filePath));
         try (FileOutputStream fileStream = new FileOutputStream(outputFile, true);
              Writer writer = new OutputStreamWriter(fileStream, StandardCharsets.UTF_8)) {
             writer.write("in-built-" + content + "\n");

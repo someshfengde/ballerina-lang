@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 
 /***
@@ -37,8 +39,8 @@ import java.nio.charset.StandardCharsets;
  * @since 2.7.1
  */
 public class LogCodeGeneratorInBuiltPlugin extends CompilerPlugin {
-    static String filePath = "./src/test/resources/compiler_plugin_tests/" +
-            "log_creator_combined_plugin/compiler-plugin.txt";
+    private static final Path filePath = Paths.get("build/logs/log_creator_combined_plugin/compiler-plugin.txt")
+            .toAbsolutePath();
 
     @Override
     public void init(CompilerPluginContext pluginContext) {
@@ -52,7 +54,7 @@ public class LogCodeGeneratorInBuiltPlugin extends CompilerPlugin {
         @Override
         public void init(CodeGeneratorContext generatorContext) {
             generatorContext.addSourceGeneratorTask(sourceGeneratorContext ->
-                appendToOutputFile(filePath, "source-generator"));
+                appendToOutputFile("source-generator"));
 
             generatorContext.addSyntaxNodeAnalysisTask(new LogSyntaxNodeAnalysis(), SyntaxKind.FUNCTION_DEFINITION);
         }
@@ -66,13 +68,13 @@ public class LogCodeGeneratorInBuiltPlugin extends CompilerPlugin {
 
         @Override
         public void perform(SyntaxNodeAnalysisContext syntaxNodeAnalysisContext) {
-            appendToOutputFile(filePath, "syntax-node-analysis-generator");
+            appendToOutputFile("syntax-node-analysis-generator");
         }
     }
 
 
-    private static void appendToOutputFile(String filePath, String content) {
-        File outputFile = new File(filePath);
+    private static void appendToOutputFile(String content) {
+        File outputFile = new File(String.valueOf(filePath));
         try (FileOutputStream fileStream = new FileOutputStream(outputFile, true);
              Writer writer = new OutputStreamWriter(fileStream, StandardCharsets.UTF_8)) {
             writer.write("in-built-" + content + "\n");
