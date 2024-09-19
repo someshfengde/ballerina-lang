@@ -65,6 +65,14 @@ public abstract class NamedCompoundVariable extends BCompoundVariable {
         }
 
         if (!namedChildVariables.containsKey(name)) {
+            for (Map.Entry<String, Value> childVariable : namedChildVariables.entrySet()) {
+                String unicodeOfSlash = "&0092";
+                String escaped = childVariable.getKey()
+                        .replaceAll(String.format("\\%s(\\%s)?", unicodeOfSlash, unicodeOfSlash), "$1");
+                if (escaped.equals(name)) {
+                    return childVariable.getValue();
+                }
+            }
             throw new DebugVariableException("No child variables found with name: '" + name + "'");
         }
         return namedChildVariables.get(name);
